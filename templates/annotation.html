@@ -1,0 +1,192 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>画像クリック座標表示</title>
+    <style>
+        /* ページ全体のスタイル */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        /* 画像コンテナのスタイル */
+        #imageContainer {
+            position: relative;
+            display: inline-block;
+            max-width: 50%; /* ページ幅の50%に制限 */
+            width: 50%;
+            border: 1px solid #ccc;
+        }
+
+        /* 画像のスタイル */
+        #clickableImage {
+            width: 100%; /* コンテナに合わせてリサイズ */
+            height: auto;
+            display: block;
+        }
+
+        /* 座標表示部分のスタイル */
+        #coords {
+            margin-top: 10px;
+            font-size: 16px;
+            color: #333;
+        }
+
+        /* ナビゲーションボタンのスタイル */
+        .nav-buttons {
+            margin-top: 20px;
+        }
+
+        .nav-buttons button {
+            padding: 10px 20px;
+            margin-right: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        /* マーカーのスタイル */
+        .marker {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: red;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>画像クリック，座標表示</h1>
+    <h2 id="imageName">{{ images[0] }}</h2>
+
+    <!-- 画像を表示するコンテナ -->
+    <div id="imageContainer">
+        <img id="clickableImage" src="{{ images[0] }}" alt="クリック可能な画像">
+    </div>
+
+    <!-- 座標を表示する部分 -->
+    <div id="coords">クリック座標: なし</div>
+
+    <!-- ナビゲーションボタン -->
+    <div class="nav-buttons">
+        <button id="prevButton">前の画像</button>
+        <button id="nextButton">次の画像</button>
+    </div>
+
+    <script>
+        // テンプレートから画像リストを取得
+        const images = {{ images | tojson }};
+        let currentIndex = 0;
+
+        // 画像と座標表示用の要素を取得
+        const image = document.getElementById('clickableImage');
+        const coordsDisplay = document.getElementById('coords');
+        const imageContainer = document.getElementById('imageContainer');
+        const prevButton = document.getElementById('prevButton');
+        const nextButton = document.getElementById('nextButton');
+        const imageName = document.getElementById('imageName');
+
+        // 画像が読み込まれた後に処理を実行
+        image.addEventListener('load', function() {
+            // 画像の自然サイズを取得
+            const naturalWidth = image.naturalWidth;
+            const naturalHeight = image.naturalHeight;
+
+            // 画像にクリックイベントリスナーを追加
+            image.addEventListener('click', function(event) {
+                // 画像の表示サイズを取得
+                const rect = image.getBoundingClientRect();
+                const displayedWidth = rect.width;
+                const displayedHeight = rect.height;
+
+                // クリック位置のページ座標を取得
+                const clickX = event.clientX - rect.left;
+                const clickY = event.clientY - rect.top;
+
+                // スケーリングファクターを計算
+                const scaleX = naturalWidth / displayedWidth;
+                const scaleY = naturalHeight / displayedHeight;
+
+                // オリジナル座標を計算
+                const originalX = Math.round(clickX * scaleX);
+                const originalY = Math.round(clickY * scaleY);
+
+                // 座標を表示
+                coordsDisplay.textContent = `クリック座標: (${originalX}, ${originalY})`;
+
+                // マーカーを作成
+                const marker = document.createElement('div');
+                marker.classList.add('marker');
+                marker.style.left = `${clickX}px`;
+                marker.style.top = `${clickY}px`;
+
+                // 画像コンテナにマーカーを追加
+                imageContainer.appendChild(marker);
+
+                // 一定時間後にマーカーを削除（オプション）
+                setTimeout(() => {
+                    marker.remove();
+                }, 2000); // 2秒後に削除
+
+                // 座標データをサーバーに送信
+                fetch('/post_coordinates', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        image: images[currentIndex],
+                        x: originalX,
+                        y: originalY
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Success:', data);
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                });
+            });
+        });
+
+        // 画像が既にキャッシュされている場合に備えて、ロードイベントを確認
+        if (image.complete) {
+            image.dispatchEvent(new Event('load'));
+        }
+
+        // 次の画像に切り替える関数
+        function showNextImage() {
+            currentIndex = (currentIndex + 1) % images.length;
+            image.src = images[currentIndex];
+            coordsDisplay.textContent = 'クリック座標: なし';
+            imageName.textContent = image.src
+            clearMarkers();
+        }
+
+        // 前の画像に切り替える関数
+        function showPrevImage() {
+            currentIndex = (currentIndex - 1 + images.length) % images.length;
+            image.src = images[currentIndex];
+            coordsDisplay.textContent = 'クリック座標: なし';
+            imageName.textContent = image.src
+            clearMarkers();
+        }
+
+        // マーカーを全て削除する関数
+        function clearMarkers() {
+            const markers = document.querySelectorAll('.marker');
+            markers.forEach(marker => marker.remove());
+        }
+
+        // ボタンにイベントリスナーを追加
+        nextButton.addEventListener('click', showNextImage);
+        prevButton.addEventListener('click', showPrevImage);
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>オリジナル座標取得画像クリック</title>
+    <style>
+        /* 画像コンテナのスタイル */
+        #imageContainer {
+            position: relative;
+            display: inline-block;
+            max-width: 50%; /* ページ幅の50%に制限 */
+            width: 50%;
+        }
+        /* 画像のスタイル */
+        #clickableImage {
+            width: 100%; /* コンテナに合わせてリサイズ */
+            height: auto;
+            display: block;
+        }
+        /* 座標表示部分のスタイル */
+        #coords {
+            margin-top: 10px;
+            font-size: 16px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    {{ images[0] }}
+    <!-- 画像を表示するコンテナ -->
+    <div id="imageContainer">
+        <img id="clickableImage" src="{{ url_for('static', path='dataset/truck.jpg') }}" alt="クリック可能な画像">
+    </div>
+    
+    <!-- 座標を表示する部分 -->
+    <div id="coords">クリック座標: なし</div>
+    <div class="nav-buttons">
+        <button id="prevButton">前の画像</button>
+        <button id="nextButton">次の画像</button>
+    </div>
+
+    <script>
+        // 画像と座標表示用の要素を取得
+        const image = document.getElementById('clickableImage');
+        const coordsDisplay = document.getElementById('coords');
+
+        // 画像が読み込まれた後に処理を実行
+        image.addEventListener('load', function() {
+            // 画像の自然サイズを取得
+            const naturalWidth = image.naturalWidth;
+            const naturalHeight = image.naturalHeight;
+
+            // 画像にクリックイベントリスナーを追加
+            image.addEventListener('click', function(event) {
+                // 画像の表示サイズを取得
+                const rect = image.getBoundingClientRect();
+                const displayedWidth = rect.width;
+                const displayedHeight = rect.height;
+
+                // クリック位置のページ座標を取得
+                const clickX = event.clientX - rect.left;
+                const clickY = event.clientY - rect.top;
+
+                // スケーリングファクターを計算
+                const scaleX = naturalWidth / displayedWidth;
+                const scaleY = naturalHeight / displayedHeight;
+
+                // オリジナル座標を計算
+                const originalX = Math.round(clickX * scaleX);
+                const originalY = Math.round(clickY * scaleY);
+
+                // 座標を表示
+                coordsDisplay.textContent = `クリック座標: (${originalX}, ${originalY})`;
+            });
+        });
+
+        // 画像が既にキャッシュされている場合に備えて、ロードイベントを確認
+        if (image.complete) {
+            image.dispatchEvent(new Event('load'));
+        }
+    </script>
+
+</body>
+</html>
+
