@@ -12,13 +12,14 @@
         }
 
         /* 画像コンテナのスタイル */
-        #imageContainer {
+        #imageContainer  {
             position: relative;
             display: inline-block;
             max-width: 50%; /* ページ幅の50%に制限 */
             width: 50%;
             border: 1px solid #ccc;
         }
+
 
         /* 画像のスタイル */
         #clickableImage {
@@ -60,12 +61,15 @@
 </head>
 <body>
 
-    <h1>画像クリック，座標表示</h1>
+    <h1>画像クリックでannotation</h1>
     <h2 id="imageName">{{ images[0] }}</h2>
 
     <!-- 画像を表示するコンテナ -->
     <div id="imageContainer">
         <img id="clickableImage" src="{{ images[0] }}" alt="クリック可能な画像">
+    </div>
+    <div id="annotationimageContainer" >
+        <img id="annotationimage" style="width: 50%;" src="{{ images[0] }}" alt="annotationイメージ">
     </div>
 
     <!-- 座標を表示する部分 -->
@@ -89,6 +93,7 @@
         const prevButton = document.getElementById('prevButton');
         const nextButton = document.getElementById('nextButton');
         const imageName = document.getElementById('imageName');
+        const annotationImage = document.getElementById('annotationimage');
 
         // 画像が読み込まれた後に処理を実行
         image.addEventListener('load', function() {
@@ -139,7 +144,7 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        image: images[currentIndex],
+                        image_path: images[currentIndex],
                         x: originalX,
                         y: originalY
                     })
@@ -147,6 +152,8 @@
                 .then(response => response.json())
                 .then(data => {
                     console.log('Success:', data);
+                    showAnnotatoImage(data.annotato_path);
+                    
                 })
                 .catch((error) => {
                     console.error('Error:', error);
@@ -158,13 +165,19 @@
         if (image.complete) {
             image.dispatchEvent(new Event('load'));
         }
+        if (annotationImage.complete) {
+            annotationImage.dispatchEvent(new Event('load'));
+        }
+        function showAnnotatoImage(path){
+            annotationImage.src = path;
+        }
 
         // 次の画像に切り替える関数
         function showNextImage() {
             currentIndex = (currentIndex + 1) % images.length;
             image.src = images[currentIndex];
             coordsDisplay.textContent = 'クリック座標: なし';
-            imageName.textContent = image.src
+            imageName.textContent = images[currentIndex];
             clearMarkers();
         }
 
