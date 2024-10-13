@@ -7,9 +7,15 @@
 </head>
 <body>
 
-
-
 <div class="container">
+    <h1>dataset list</h1>
+    <ul class="list-group">
+        
+        {% for name in dataset_list %}
+            <li class="list-group-item"><a href="/annotation/{{name}}">{{name}}</a></li>
+        {% endfor %}
+
+      </ul>
 </div>
 
 </body>

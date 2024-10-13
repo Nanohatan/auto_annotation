@@ -1,205 +1,125 @@
-<!-- templates/index.html -->
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>画像クリック座標表示</title>
-    <style>
-        /* ページ全体のスタイル */
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-
-        /* 画像コンテナのスタイル */
-        #imageContainer  {
-            position: relative;
-            display: inline-block;
-            max-width: 50%; /* ページ幅の50%に制限 */
-            width: 50%;
-            border: 1px solid #ccc;
-        }
-
-
-        /* 画像のスタイル */
-        #clickableImage {
-            width: 100%; /* コンテナに合わせてリサイズ */
-            height: auto;
-            display: block;
-        }
-
-        /* 座標表示部分のスタイル */
-        #coords {
-            margin-top: 10px;
-            font-size: 16px;
-            color: #333;
-        }
-
-        /* ナビゲーションボタンのスタイル */
-        .nav-buttons {
-            margin-top: 20px;
-        }
-
-        .nav-buttons button {
-            padding: 10px 20px;
-            margin-right: 10px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-
-        /* マーカーのスタイル */
-        .marker {
-            position: absolute;
-            width: 10px;
-            height: 10px;
-            background-color: red;
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-        }
-    </style>
+<title>Test Title</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 </head>
 <body>
 
-    <h1>画像クリックでannotation</h1>
-    <h2 id="imageName">{{ images[0] }}</h2>
 
-    <!-- 画像を表示するコンテナ -->
-    <div id="imageContainer">
-        <img id="clickableImage" src="{{ images[0] }}" alt="クリック可能な画像">
+
+<div class="container">
+    <h1>dataset: {{dataset}}</h1>
+    <h2 id="imageName">{{images[0]}}</h2>
+    <p id="coords" > (x,y)</p>
+
+    <div class="row ">
+        <div class="col"> 
+            <button type="button" class="btn btn-secondary">Back</button>
+            <button type="button" class="btn btn-primary">Next</button> 
+        </div>
+        <div class="col"> 
+            <button id="reloadButton" type="button" class="btn btn-info">Reload annotation image</button>
+        </div>
     </div>
-    <div id="annotationimageContainer" >
-        <img id="annotationimage" style="width: 50%;" src="{{ images[0] }}" alt="annotationイメージ">
+    <div class="row ">
+        <div class="col">
+            <img id="originalImage" src="{{ url_for('static', path='dataset/'+ dataset +'/' + images[0]) }}" width="100%" class="" alt="...">
+        </div>
+        <div class="col">
+            <img id="annotatoImage" src="https://dummyimage.com/1600x400/000/fff"  width="100%"  class=" " alt="...">
+        </div>
+    </div>  
+
+    <div class="row ">
+        <h2>total annotation image</h2>
+        <div class="col"> 
+            <button type="button" class="btn btn-primary">show</button>
+        </div>
+    </div>
+    <div class="row">
+        <img id="" src="https://dummyimage.com/1600x400/000/fff"  width="100%"  class=" " alt="...">
     </div>
 
-    <!-- 座標を表示する部分 -->
-    <div id="coords">クリック座標: なし</div>
+</div>
 
-    <!-- ナビゲーションボタン -->
-    <div class="nav-buttons">
-        <button id="prevButton">前の画像</button>
-        <button id="nextButton">次の画像</button>
-    </div>
+<script>
+    const image = document.getElementById("originalImage");
+    const coords = document.getElementById("coords");
+    const annotatoImage = document.getElementById("annotatoImage");
 
-    <script>
-        // テンプレートから画像リストを取得
-        const images = {{ images | tojson }};
-        let currentIndex = 0;
+    const images = {{ images | tojson }};
+    const datasetUrl = "{{ url_for('static', path='dataset/'+ dataset+'/' ) }}";
+    console.log("{{ url_for('static', path='dataset/'+ dataset+'/' ) }}");
 
-        // 画像と座標表示用の要素を取得
-        const image = document.getElementById('clickableImage');
-        const coordsDisplay = document.getElementById('coords');
-        const imageContainer = document.getElementById('imageContainer');
-        const prevButton = document.getElementById('prevButton');
-        const nextButton = document.getElementById('nextButton');
-        const imageName = document.getElementById('imageName');
-        const annotationImage = document.getElementById('annotationimage');
+    const shownImageIndex = 0;
 
-        // 画像が読み込まれた後に処理を実行
-        image.addEventListener('load', function() {
-            // 画像の自然サイズを取得
-            const naturalWidth = image.naturalWidth;
-            const naturalHeight = image.naturalHeight;
+    image.addEventListener('load', function() {
+        // 画像の自然サイズを取得
+        const naturalWidth = image.naturalWidth;
+        const naturalHeight = image.naturalHeight;
+        
+        
+        image.addEventListener('click', function(event) {
+            console.log(image);
+            // 画像の表示サイズを取得
+            const rect = image.getBoundingClientRect();
+            const displayedWidth = rect.width;
+            const displayedHeight = rect.height;
 
-            // 画像にクリックイベントリスナーを追加
-            image.addEventListener('click', function(event) {
-                // 画像の表示サイズを取得
-                const rect = image.getBoundingClientRect();
-                const displayedWidth = rect.width;
-                const displayedHeight = rect.height;
+            // クリック位置のページ座標を取得
+            const clickX = event.clientX - rect.left;
+            const clickY = event.clientY - rect.top;
 
-                // クリック位置のページ座標を取得
-                const clickX = event.clientX - rect.left;
-                const clickY = event.clientY - rect.top;
+            // スケーリングファクターを計算
+            const scaleX = naturalWidth / displayedWidth;
+            const scaleY = naturalHeight / displayedHeight;
 
-                // スケーリングファクターを計算
-                const scaleX = naturalWidth / displayedWidth;
-                const scaleY = naturalHeight / displayedHeight;
+            // オリジナル座標を計算
+            const originalX = Math.round(clickX * scaleX);
+            const originalY = Math.round(clickY * scaleY);
+            coords.textContent = `(${originalX},${originalY})`;
 
-                // オリジナル座標を計算
-                const originalX = Math.round(clickX * scaleX);
-                const originalY = Math.round(clickY * scaleY);
-
-                // 座標を表示
-                coordsDisplay.textContent = `クリック座標: (${originalX}, ${originalY})`;
-
-                // マーカーを作成
-                const marker = document.createElement('div');
-                marker.classList.add('marker');
-                marker.style.left = `${clickX}px`;
-                marker.style.top = `${clickY}px`;
-
-                // 画像コンテナにマーカーを追加
-                imageContainer.appendChild(marker);
-
-                // 一定時間後にマーカーを削除（オプション）
-                setTimeout(() => {
-                    marker.remove();
-                }, 2000); // 2秒後に削除
-
-                // 座標データをサーバーに送信
-                fetch('/post_coordinates', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        image_path: images[currentIndex],
-                        x: originalX,
-                        y: originalY
-                    })
+            // 座標データをサーバーに送信
+            fetch('/post_coordinates', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    fn: images[shownImageIndex],
+                    dataset: "{{dataset}}",
+                    x: originalX,
+                    y: originalY
                 })
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Success:', data);
-                    showAnnotatoImage(data.annotato_path);
-                    
-                })
-                .catch((error) => {
-                    console.error('Error:', error);
-                });
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Success:', data);
+                annotatoImage.src = "{{ url_for('static', path='tmp_annotato/' ) }}" + data.annotato_path;
+
+            })
+            .catch((error) => {
+                console.error('Error:', error);
             });
+
         });
+    });
 
-        // 画像が既にキャッシュされている場合に備えて、ロードイベントを確認
-        if (image.complete) {
-            image.dispatchEvent(new Event('load'));
-        }
-        if (annotationImage.complete) {
-            annotationImage.dispatchEvent(new Event('load'));
-        }
-        function showAnnotatoImage(path){
-            annotationImage.src = path;
-        }
 
-        // 次の画像に切り替える関数
-        function showNextImage() {
-            currentIndex = (currentIndex + 1) % images.length;
-            image.src = images[currentIndex];
-            coordsDisplay.textContent = 'クリック座標: なし';
-            imageName.textContent = images[currentIndex];
-            clearMarkers();
-        }
 
-        // 前の画像に切り替える関数
-        function showPrevImage() {
-            currentIndex = (currentIndex - 1 + images.length) % images.length;
-            image.src = images[currentIndex];
-            coordsDisplay.textContent = 'クリック座標: なし';
-            imageName.textContent = image.src
-            clearMarkers();
-        }
-
-        // マーカーを全て削除する関数
-        function clearMarkers() {
-            const markers = document.querySelectorAll('.marker');
-            markers.forEach(marker => marker.remove());
-        }
-
-        // ボタンにイベントリスナーを追加
-        nextButton.addEventListener('click', showNextImage);
-        prevButton.addEventListener('click', showPrevImage);
-    </script>
+    //reload button
+    const reloadButton = document.getElementById('reloadButton');
+    // ボタンクリック時のイベントリスナーを追加
+    reloadButton.addEventListener('click', function() {
+        // 画像のソースURLにタイムスタンプを追加してキャッシュを回避
+        const timestamp = new Date().getTime();
+        const originalSrc = annotatoImage.getAttribute('src').split('?')[0];
+        annotatoImage.setAttribute('src', `${originalSrc}?t=${timestamp}`);
+    });
+</script>
 
 </body>
+
 </html>
