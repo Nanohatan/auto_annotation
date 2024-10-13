@@ -19,23 +19,34 @@
             <button type="button" class="btn btn-secondary">Back</button>
             <button type="button" class="btn btn-primary">Next</button> 
         </div>
-        <div class="col"> </div>
+        <div class="col"> 
+            <button id="reloadButton" type="button" class="btn btn-info">Reload annotation image</button>
+        </div>
     </div>
     <div class="row ">
         <div class="col">
             <img id="originalImage" src="{{ url_for('static', path='dataset/'+ dataset +'/' + images[0]) }}" width="100%" class="" alt="...">
         </div>
         <div class="col">
-            <img src="https://dummyimage.com/1600x400/000/fff"  width="100%"  class=" " alt="...">
+            <img id="annotatoImage" src="https://dummyimage.com/1600x400/000/fff"  width="100%"  class=" " alt="...">
         </div>
     </div>  
+
+    <div class="row ">
+        <h2>total annotation image</h2>
+    </div>
 </div>
 
 <script>
     const image = document.getElementById("originalImage");
     const coords = document.getElementById("coords");
+    const annotatoImage = document.getElementById("annotatoImage");
+
     const images = {{ images | tojson }};
-    const shownImageIndex = 0
+    const datasetUrl = "{{ url_for('static', path='dataset/'+ dataset+'/' ) }}";
+    console.log("{{ url_for('static', path='dataset/'+ dataset+'/' ) }}");
+
+    const shownImageIndex = 0;
 
     image.addEventListener('load', function() {
         // 画像の自然サイズを取得
@@ -64,13 +75,14 @@
             coords.textContent = `(${originalX},${originalY})`;
 
             // 座標データをサーバーに送信
-            fetch('/add_coordinates', {
+            fetch('/post_coordinates', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    image_name: images[shownImageIndex],
+                    fn: images[shownImageIndex],
+                    dataset: "sample",
                     x: originalX,
                     y: originalY
                 })
@@ -78,12 +90,26 @@
             .then(response => response.json())
             .then(data => {
                 console.log('Success:', data);
+                annotatoImage.src = "{{ url_for('static', path='tmp_annotato/' ) }}" + data.annotato_path;
+
             })
             .catch((error) => {
                 console.error('Error:', error);
             });
 
         });
+    });
+
+
+
+    //reload button
+    const reloadButton = document.getElementById('reloadButton');
+    // ボタンクリック時のイベントリスナーを追加
+    reloadButton.addEventListener('click', function() {
+        // 画像のソースURLにタイムスタンプを追加してキャッシュを回避
+        const timestamp = new Date().getTime();
+        const originalSrc = annotatoImage.getAttribute('src').split('?')[0];
+        annotatoImage.setAttribute('src', `${originalSrc}?t=${timestamp}`);
     });
 </script>
 

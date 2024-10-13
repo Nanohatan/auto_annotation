@@ -69,11 +69,6 @@ async def show(request: Request):
     return templates.TemplateResponse("annotation.html", {"request": request, "images": image_urls})
 from pydantic import BaseModel
 
-class Coordinate(BaseModel):
-    image_path: str
-    x: float
-    y: float
-
 def show_mask(mask, ax, random_color=False, borders = False):
     if random_color:
         color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
@@ -94,7 +89,6 @@ def get_mask_over(mask,img_path):
     mask = mask.astype(np.uint8)
     contours, _ = cv2.findContours(mask,cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE) 
     # Try to smooth contours
-    print(mask)
 
     img = cv2.imread(img_path)
     cv2.drawContours(img, contours, -1, (0,255,0), 3)
@@ -102,15 +96,18 @@ def get_mask_over(mask,img_path):
     # img[mask==1] = [128, 128, 128] 
     mask[mask==1] = 255
     np.save("car",mask)
-
     return img
 
 
-
+class Coordinate(BaseModel):
+    fn:str
+    dataset:str
+    x: float
+    y: float
 @app.post("/post_coordinates")
 async def post_coordinates(coord: Coordinate):
     # 受け取ったデータを処理します
-    image_path = coord.image_path
+    image_path = os.path.join("static", "dataset", coord.dataset,coord.fn)
     x = coord.x
     y = coord.y
     # ここで必要な処理を実行（例：データベースに保存、ログ出力など）
@@ -128,13 +125,13 @@ async def post_coordinates(coord: Coordinate):
         masks = masks[sorted_ind]
         scores = scores[sorted_ind]
         logits = logits[sorted_ind]
-        img = get_mask_over(masks[0],image_path[1:])
-        fn = image_path.split("/")[-1]
-        cv2.imwrite(os.path.join("static","tmp_annotato","sample",fn), img)
+        img = get_mask_over(masks[0],image_path)
+        annotato_path = os.path.join("static","tmp_annotato",coord.dataset,coord.fn)
+        cv2.imwrite(annotato_path, img)
 
 
     # クライアントにレスポンスを返します
-    return {"message": "Coordinates received successfully", "annotato_path":"annotato_path"}
+    return {"message": "Coordinates received successfully", "annotato_path":os.path.join(coord.dataset,coord.fn)}
 
 
 @app.get("/test/{dataset}")
