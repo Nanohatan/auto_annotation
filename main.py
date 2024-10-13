@@ -56,17 +56,7 @@ async def root():
 async def upload_form(request: Request):
     return templates.TemplateResponse("upload.html", {"request": request})
 
-@app.get("/annotation")
-async def show(request: Request):
-    dataset_dir = os.path.join("static", "dataset")
-    # datasetディレクトリ内の全JPEGファイルをリストアップ
-    images = [
-        f for f in os.listdir(dataset_dir)
-        if os.path.isfile(os.path.join(dataset_dir, f)) and f.lower().endswith((".jpg", ".jpeg"))
-    ]
-    # 画像のURLリストを作成
-    image_urls = [f"/static/dataset/{image}" for image in images]
-    return templates.TemplateResponse("annotation.html", {"request": request, "images": image_urls})
+
 from pydantic import BaseModel
 
 def show_mask(mask, ax, random_color=False, borders = False):
@@ -95,8 +85,14 @@ def get_mask_over(mask,img_path):
 
     # img[mask==1] = [128, 128, 128] 
     mask[mask==1] = 255
-    np.save("car",mask)
+
     return img
+
+def save_mask(mask,fn):
+    # static/annotaion_info/{dataset}/{image}-01.npy, 01... number of object in a image.
+
+    np.save(fn,mask)
+
 
 
 class Coordinate(BaseModel):
@@ -145,3 +141,34 @@ async def post_coordinates(request: Request,dataset:str):
     return templates.TemplateResponse("test.html", {"request": request, "dataset":dataset, "images":images})
 
 
+@app.get("/annotation")
+async def show(request: Request):
+    path = os.path.join("static", "dataset")
+    with os.scandir(path) as entries:
+            directories = [entry.name for entry in entries if entry.is_dir()]
+
+    return templates.TemplateResponse("annotation.index.html", {"request": request, "dataset_list": directories})
+
+@app.get("/annotation/{dataset}")
+async def post_coordinates(request: Request,dataset:str):
+    dataset_dir = os.path.join("static", "dataset", dataset)
+    # datasetディレクトリ内の全JPEGファイルをリストアップ
+    images = [
+        f for f in os.listdir(dataset_dir)
+        if os.path.isfile(os.path.join(dataset_dir, f)) and f.lower().endswith((".jpg", ".jpeg"))
+    ]
+    return templates.TemplateResponse("annotation.html", {"request": request, "dataset":dataset, "images":images})
+
+
+class ImageInfo(BaseModel):
+    dataset:str
+    fn:str
+    @property
+    def original_img_path(self) -> str:
+        return os.path.join("static", "dataset", self.dataset, self.fn)
+
+
+app.get("annotation")
+async def get_annotation(image_info: ImageInfo):
+
+    return {"image_path":image_info}
