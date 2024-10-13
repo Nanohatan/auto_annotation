@@ -6,6 +6,7 @@ from pycocotools import mask as coco_mask
 from tqdm import tqdm
 
 import matplotlib.pyplot as plt
+import cv2
 
 def load_categories(categories_file):
     with open(categories_file, 'r') as f:
@@ -48,8 +49,9 @@ def get_annotations(masks_dir, images, category_id=0):
 
         # Load masks from the .npy file
         masks = np.load(mask_path)
-
-        masks[masks==0] = 1
+        # print(np.unique(masks))
+        # exit()
+        # masks[masks==0] = 1
         
         # Ensure the mask is 3D: (number_of_objects, height, width)
         if masks.ndim == 2:
@@ -58,48 +60,70 @@ def get_annotations(masks_dir, images, category_id=0):
 
         # Process each binary mask
         for binary_mask in masks:
-            fig,ax = plt.subplots()
-            ax.imshow(binary_mask)
-            plt.show()
-            exit()
-            # Convert binary mask to RLE (Run Length Encoding)
-            rle = coco_mask.encode(np.asfortranarray(binary_mask))
-            rle['counts'] = rle['counts'].decode('utf-8')  # Convert RLE 'counts' from bytes to string
+            # Convert binary mask to uint8 format
+            binary_mask_uint8 = binary_mask.astype(np.uint8)
 
-            # Calculate the area and bounding box of the mask
-            area = int(coco_mask.area(rle))
-            bbox = coco_mask.toBbox(rle).tolist()  # Bounding box as [x, y, width, height]
+            # Find contours using OpenCV
+            contours, _ = cv2.findContours(binary_mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-            # Use RLE as segmentation, no need to use frPyObjects since it's already in the proper format
-            segmentation = rle
+            # If no contours are found, skip this mask
+            if not contours:
+                continue
 
-            # Append the annotation data
-            annotations.append({
-                "id": annotation_id,
-                "image_id": image['id'],
-                "category_id": category_id,
-                "segmentation": segmentation,
-                "bbox": bbox,
-                "area": area,
-                "iscrowd": 0
-            })
+            # Encode segmentation in COCO format (list of polygons)
+            segmentation = []
+            for contour in contours:
+                # Flatten the contour array and convert to a list
+                segmentation.append(contour.flatten().tolist())
 
-            # Increment annotation ID
-            annotation_id += 1
+                # Calculate the area of the mask
+                area = float(np.sum(binary_mask))
+
+                # Compute bounding box [x, y, width, height]
+                y_indices, x_indices = np.where(binary_mask)
+                if y_indices.size == 0 or x_indices.size == 0:
+                    continue  # Skip if the mask is empty
+
+                x_min, x_max = x_indices.min(), x_indices.max()
+                y_min, y_max = y_indices.min(), y_indices.max()
+                bbox = [
+                    int(x_min),
+                    int(y_min),
+                    int(x_max - x_min + 1),
+                    int(y_max - y_min + 1)
+                ]
+
+                # Create the annotation dictionary
+                annotation = {
+                    'id': annotation_id,
+                    'image_id': image['id'],
+                    'category_id': category_id,
+                    'segmentation': segmentation,
+                    'area': area,
+                    'bbox': bbox,
+                    'iscrowd': 0
+                }
+
+                # Append the annotation to the list
+                annotations.append(annotation)
+                annotation_id += 1
 
     return annotations
 
-
 def main():
+    
     # 設定
     images_dir = 'dataset/images'        # 画像フォルダのパス
     masks_dir = 'dataset/masks'          # マスクフォルダのパス
-    output_file = 'output_coco.json'     # 出力JSONファイル名
-
+    output_file = 'output_coco2.json'     # 出力JSONファイル名
+    # A = np.load(os.path.join(masks_dir,"_cars.npy"))
+    # B = np.load(os.path.join(masks_dir,"cars2.npy"))
+    # C = np.array([A,B])
+    # np.save("cars",C)
+    # exit()
 
     # 画像情報の取得
     images = get_image_info(images_dir)
-    print(images)
 
     # アノテーションの生成
     annotations = get_annotations(masks_dir, images)
@@ -109,7 +133,7 @@ def main():
     coco = {
         "images": images,
         "annotations": annotations,
-        "categories": {"id": 1, "name": "shrimp", "supercategory": "shrimp"},
+        "categories": [{"id": 0, "name": "shrimp", "supercategory": "shrimp"},]
     }
 
     # JSONファイルとして保存

@@ -74,7 +74,7 @@ class Coordinate(BaseModel):
     x: float
     y: float
 
-def show_mask(mask, ax, random_color=False, borders = True):
+def show_mask(mask, ax, random_color=False, borders = False):
     if random_color:
         color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
     else:
@@ -89,17 +89,35 @@ def show_mask(mask, ax, random_color=False, borders = True):
         contours = [cv2.approxPolyDP(contour, epsilon=0.01, closed=True) for contour in contours]
         mask_image = cv2.drawContours(mask_image, contours, -1, (1, 1, 1, 0.5), thickness=2) 
     ax.imshow(mask_image)
+import cv2
+def get_mask_over(mask,img_path):
+    mask = mask.astype(np.uint8)
+    contours, _ = cv2.findContours(mask,cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE) 
+    # Try to smooth contours
+    print(mask)
+
+    img = cv2.imread(img_path)
+    cv2.drawContours(img, contours, -1, (0,255,0), 3)
+
+    # img[mask==1] = [128, 128, 128] 
+    mask[mask==1] = 255
+    np.save("car",mask)
+
+    return img
+
+
+
 @app.post("/post_coordinates")
 async def post_coordinates(coord: Coordinate):
     # 受け取ったデータを処理します
     image_path = coord.image_path
     x = coord.x
     y = coord.y
-        # ここで必要な処理を実行（例：データベースに保存、ログ出力など）
+    # ここで必要な処理を実行（例：データベースに保存、ログ出力など）
     print(f"Received image: {image_path}, x: {x}, y: {y}")
 
     # 画像を開く
-    with Image.open(image_path[1:]) as image:
+    with Image.open(image_path) as image:
         predictor.set_image(image)
         masks, scores, logits = predictor.predict(
             point_coords=np.array([[x,y]]),
@@ -110,29 +128,13 @@ async def post_coordinates(coord: Coordinate):
         masks = masks[sorted_ind]
         scores = scores[sorted_ind]
         logits = logits[sorted_ind]
-        
-        plt.figure(figsize=(10, 10))
-        plt.imshow(image)
-        show_mask(masks[0], plt.gca())
-        plt.show()
-        draw = ImageDraw.Draw(image)
-        
-        
-        # 座標にマーカーをプロット（例: 赤い円）
-        radius = 20
-        left_up_point = (x - radius, y - radius)
-        right_down_point = (x + radius, y + radius)
-        draw.ellipse([left_up_point, right_down_point], fill="red", outline="red")
-        
-        # 画像をバイトデータに変換
-        image_format = "PNG" if image.format != "JPEG" else "JPEG"
+        img = get_mask_over(masks[0],image_path[1:])
         fn = image_path.split("/")[-1]
-        annotato_path = os.path.join("static","tmp_annotato",fn)
-        image.save(annotato_path, format=image_format)
+        cv2.imwrite(os.path.join("static","tmp_annotato","sample",fn), img)
 
 
     # クライアントにレスポンスを返します
-    return {"message": "Coordinates received successfully", "annotato_path":annotato_path}
+    return {"message": "Coordinates received successfully", "annotato_path":"annotato_path"}
 
 
 @app.get("/test/{dataset}")
