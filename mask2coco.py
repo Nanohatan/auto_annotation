@@ -175,10 +175,8 @@ def check(annFile, dataset,img_name):
     I = cv2.cvtColor(I, cv2.COLOR_BGR2RGB)
 
     # Matplotlibで画像を表示
-    plt.figure(figsize=(12, 8))
-    plt.imshow(I)
-    plt.axis('off')  # 軸を非表示にする
-
+    fig,ax = plt.subplots()
+    ax.imshow(I)
     # アノテーションIDを取得
     annIds = coco.getAnnIds(imgIds=img['id'], catIds=catIds)
     anns = coco.loadAnns(annIds)
@@ -195,7 +193,7 @@ def check(annFile, dataset,img_name):
     output_filename = os.path.join("static","tmp_annotato", dataset, f"{img['file_name']}")
 
     # 画像を保存
-    plt.savefig(output_filename, bbox_inches='tight', pad_inches=0)
+    fig.savefig(output_filename, bbox_inches='tight', pad_inches=0)
     plt.close()
     return output_filename
 

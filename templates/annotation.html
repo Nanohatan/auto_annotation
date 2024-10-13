@@ -19,13 +19,14 @@
 
 <div class="container">
     <h1>dataset: {{dataset}}</h1>
-    <h2 id="imageName">{{images[0]}}</h2>
+    <h2 id="imageName">{{images[0]}}, </h2>
+    <i id="progress"></i>
     <p id="coords" > (x,y)</p>
 
-    <div class="row ">
+    <div class="row m-2">
         <div class="col"> 
-            <button type="button" class="btn btn-outline-secondary">Back</button>
-            <button type="button" class="btn btn-outline-primary">Next</button> 
+            <button id="backButton" type="button" class="btn btn-outline-secondary">Back</button>
+            <button  id="nextButton" type="button" class="btn btn-outline-primary">Next</button> 
             <button id="clearMarkers" type="button" class="btn btn-outline-secondary">Clear Markers</button>
             
         </div>
@@ -34,12 +35,12 @@
             <button id="saveButton" type="button" class="btn btn-primary">Save</button>
         </div>
     </div>
-    <div class="row ">
+    <div class="row m-2">
         <div class="col"> 
             <button id="positiveButton" type="button"  class="btn btn-outline-secondary active">positive</button>
             <button id="multiButton" type="button" class="btn btn-outline-secondary">Multi</button>
             <button id="negativeButton"  type="button" class="btn btn-outline-secondary">negative</button>
-            <button id="submiButton" type="button" class="btn btn-outline-primary">Submit</button>
+            <button id="submitButton" type="button" class="btn btn-outline-primary">Submit</button>
         </div>
     </div>
     <div class="row">
@@ -52,7 +53,7 @@
         </div>
     </div>  
 
-    <div class="row ">
+    <div class="row m-2">
         <h2>total annotation image</h2>
         <div class="col"> 
             <button id="showResultButton" type="button" class="btn btn-primary">show</button>
@@ -66,10 +67,15 @@
 </div>
 
 <script>
-    const image = document.getElementById("originalImage");
     const coords = document.getElementById("coords");
+    const image = document.getElementById("originalImage");
     const annotatoImage = document.getElementById("annotatoImage");
+    const imageName = document.getElementById("imageName");
+    const progress = document.getElementById("progress");
+    const annotatoResultImage = document.getElementById("annotatoResultImage");
     const multiButton = document.getElementById("multiButton");
+    const submitButton = document.getElementById("submitButton");
+
     multiButton.addEventListener("click", function() {
         this.classList.toggle("active");
     });
@@ -94,10 +100,37 @@
     });
 
     const images = {{ images | tojson }};
+
     const datasetUrl = "{{ url_for('static', path='dataset/'+ dataset+'/' ) }}";
     console.log("{{ url_for('static', path='dataset/'+ dataset+'/' ) }}");
+    let shownImageIndex = 0;
+    const nextButton = document.getElementById("nextButton");
+    progress.textContent = `${shownImageIndex}/${images.length}`;
+    nextButton.addEventListener("click", function() {
+        shownImageIndex += 1;
+        image.src = "{{ url_for('static', path='dataset/'+ dataset +'/') }}"+images[shownImageIndex];
+        annotatoImage.src = "{{ url_for('static', path='dataset/'+ dataset +'/') }}"+images[shownImageIndex];
+        annotatoResultImage.src = "{{ url_for('static', path='dataset/'+ dataset +'/') }}"+images[shownImageIndex];
+        imageName.textContent = images[shownImageIndex];
+        progress.textContent = `${shownImageIndex}/${images.length}`;
 
-    const shownImageIndex = 0;
+    });
+    const backButton = document.getElementById("backButton");
+    progress.textContent = `${shownImageIndex}/${images.length}`;
+    backButton.addEventListener("click", function() {
+        if (shownImageIndex>0){
+            shownImageIndex += -1;
+            image.src = "{{ url_for('static', path='dataset/'+ dataset +'/') }}"+images[shownImageIndex];
+            annotatoImage.src = "{{ url_for('static', path='dataset/'+ dataset +'/') }}"+images[shownImageIndex];
+            annotatoResultImage.src = "{{ url_for('static', path='dataset/'+ dataset +'/') }}"+images[shownImageIndex];
+            imageName.textContent = images[shownImageIndex];
+            progress.textContent = `${shownImageIndex}/${images.length}`;
+        }
+
+
+    });
+
+
 
     image.addEventListener('load', function() {
         // 画像の自然サイズを取得
@@ -160,6 +193,29 @@
 
         });
     });
+    submitButton.addEventListener('click', function() {
+        fetch('/post_input_point', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                fn: images[shownImageIndex],
+                dataset: "{{dataset}}",
+                point: points,
+                label: labels
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Success:', data);
+            annotatoImage.src = "{{ url_for('static', path='tmp_annotato/' ) }}" + data.annotato_path;
+
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+        });
+    });
 
 
 
@@ -206,7 +262,7 @@
 
     //show result button
     const showResultButton = document.getElementById('showResultButton');
-    const annotatoResultImage = document.getElementById("annotatoResultImage");
+    
     // ボタンクリック時のイベントリスナーを追加
     showResultButton.addEventListener('click', function() {
         fetch('/annotation_result', {
