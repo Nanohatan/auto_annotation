@@ -13,7 +13,7 @@ from fastapi.templating import Jinja2Templates
 from PIL import Image, ImageDraw
 from pycocotools.coco import COCO
 from starlette.responses import FileResponse
-
+import glob
 from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
 
@@ -38,10 +38,23 @@ app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static",html = True), name="static")
 
-
 templates = Jinja2Templates(directory="templates")
 
-
+path = os.path.join("static", "dataset")
+source_directory = os.path.join("static", "dataset")
+pattern = os.path.join(source_directory, "*/") 
+directories = glob.glob(pattern)
+for dir in directories:
+    dir_name = dir.split("/")[2]
+    tmp = os.path.join("static", "tmp_annotato",dir_name)
+    if not os.path.exists(tmp):
+        os.mkdir(tmp)
+    tmp = os.path.join("static", "json",dir_name)
+    if not os.path.exists(tmp):
+        os.mkdir(tmp)
+    tmp = os.path.join("static", "annotation_info", dir_name)
+    if not os.path.exists(tmp):
+        os.mkdir(tmp)
 
 UPLOAD_DIRECTORY = "uploads"
 @app.get("/")
@@ -65,7 +78,7 @@ def show_mask(mask, ax, random_color=False, borders = False):
         color = np.array([30/255, 144/255, 255/255, 0.6])
     h, w = mask.shape[-2:]
     mask = mask.astype(np.uint8)
-    mask_image =  mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
+    mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
     if borders:
         import cv2
         contours, _ = cv2.findContours(mask,cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE) 
@@ -131,12 +144,44 @@ async def post_coordinates(coord: Coordinate):
         img,mask = get_mask_over(masks[0],image_path)
         annotato_path = os.path.join("static","tmp_annotato",coord.dataset,"tmp.jpg")
         cv2.imwrite(annotato_path, img)
-        np.save(os.path.join("static","tmp_annotato",coord.dataset,"mask"),mask)
-        # cv2.imwrite(os.path.join("static","tmp_annotato",coord.dataset,"mask.jpg"),mask)
+        mask_fn = coord.fn.split(".")[0] + ".mask"
+        np.save(os.path.join("static","tmp_annotato",coord.dataset,mask_fn),mask)
 
     # クライアントにレスポンスを返します
     return {"message": "Coordinates received successfully", "annotato_path":os.path.join(coord.dataset,"tmp.jpg")}
 
+class InputPoint(BaseModel):
+    fn:str
+    dataset:str
+    point:list
+    label:list
+@app.post("/post_input_point")
+async def post_input_point(input_point: InputPoint):
+    # 受け取ったデータを処理します
+    image_path = os.path.join("static", "dataset", input_point.dataset,input_point.fn)
+    # ここで必要な処理を実行（例：データベースに保存、ログ出力など）
+    print(f"Received image: {image_path}")
+
+    # 画像を開く
+    with Image.open(image_path) as image:
+        predictor.set_image(image)
+        masks, scores, logits = predictor.predict(
+            point_coords=np.array(input_point.point),
+            point_labels=np.array(input_point.label),
+            multimask_output=True,
+        )
+        sorted_ind = np.argsort(scores)[::-1]
+        masks = masks[sorted_ind]
+        scores = scores[sorted_ind]
+        logits = logits[sorted_ind]
+        img,mask = get_mask_over(masks[0],image_path)
+        annotato_path = os.path.join("static","tmp_annotato",input_point.dataset,"tmp.jpg")
+        cv2.imwrite(annotato_path, img)
+        mask_fn = input_point.fn.split(".")[0] + ".mask"
+        np.save(os.path.join("static","tmp_annotato",input_point.dataset,mask_fn),mask)
+
+    # クライアントにレスポンスを返します
+    return {"message": "Coordinates received successfully", "annotato_path":os.path.join(input_point.dataset,"tmp.jpg")}
 
 @app.get("/test/{dataset}")
 async def post_coordinates(request: Request,dataset:str):
@@ -165,6 +210,7 @@ async def post_coordinates(request: Request,dataset:str):
         f for f in os.listdir(dataset_dir)
         if os.path.isfile(os.path.join(dataset_dir, f)) and f.lower().endswith((".jpg", ".jpeg"))
     ]
+    images.sort()
     return templates.TemplateResponse("annotation.html", {"request": request, "dataset":dataset, "images":images})
 
 
@@ -176,7 +222,7 @@ class ImageInfo(BaseModel):
         return os.path.join("static", "dataset", self.dataset, self.fn)
     @property
     def mask_path(self) -> str:
-        return os.path.join("static", "tmp_annotato", self.dataset, "mask.npy")
+        return os.path.join("static", "tmp_annotato", self.dataset, self.no_ext+".mask.npy")
     @property 
     def no_ext(self) -> str:
         return self.fn.split(".")[0]
@@ -208,14 +254,14 @@ async def get_annotation(image_info: ImageInfo):
     fn = os.path.join("static", "annotation_info", image_info.dataset, image_info.no_ext+".npy")
     masks = np.load(fn)
     json_fn = os.path.join("static", "json", image_info.dataset, image_info.no_ext+".json")
-    if not os.path.exists(json_fn):
-        mask2coco.save_json(os.path.join("static", "dataset", image_info.dataset),
-                            os.path.join("static", "annotation_info",image_info.dataset), json_fn)
-        path = mask2coco.check(json_fn)
-    else:
-        mask2coco.save_json(os.path.join("static", "dataset", image_info.dataset),
-                            os.path.join("static", "annotation_info",image_info.dataset), json_fn)
-        path = mask2coco.check(json_fn)
-    path = os.path.join("tmp_annotato", image_info.dataset, "1.jpg")
+    # if not os.path.exists(json_fn):
+    #     mask2coco.save_json(os.path.join("static", "dataset", image_info.dataset),
+    #                         os.path.join("static", "annotation_info",image_info.dataset), json_fn)
+    #     path = mask2coco.check(json_fn)
+    # else:
+    mask2coco.save_json(os.path.join("static", "dataset", image_info.dataset),
+                        os.path.join("static", "annotation_info",image_info.dataset), json_fn)
+    path = mask2coco.check(json_fn,dataset=image_info.dataset,img_name=image_info.fn)
+    path = os.path.join("tmp_annotato", image_info.dataset, image_info.fn)
     return {"image_path":path}
 

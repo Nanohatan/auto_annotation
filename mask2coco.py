@@ -1,12 +1,14 @@
-import os
 import json
+import os
+
+import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 from pycocotools import mask as coco_mask
+from pycocotools.coco import COCO
 from tqdm import tqdm
 
-import matplotlib.pyplot as plt
-import cv2
 
 def load_categories(categories_file):
     with open(categories_file, 'r') as f:
@@ -16,6 +18,7 @@ def load_categories(categories_file):
 
 def get_image_info(images_dir):
     image_files = [f for f in os.listdir(images_dir) if f.lower().endswith(('.jpg', '.jpeg'))]
+    image_files.sort()
     images = []
     for idx, file_name in enumerate(image_files, 1):
         file_path = os.path.join(images_dir, file_name)
@@ -29,10 +32,6 @@ def get_image_info(images_dir):
         })
     return images
 
-import os
-import numpy as np
-from tqdm import tqdm
-from pycocotools import mask as coco_mask
 
 def get_annotations(masks_dir, images, category_id=0):
     annotations = []
@@ -49,9 +48,6 @@ def get_annotations(masks_dir, images, category_id=0):
 
         # Load masks from the .npy file
         masks = np.load(mask_path)
-        # print(np.unique(masks))
-        # exit()
-        # masks[masks==0] = 1
         
         # Ensure the mask is 3D: (number_of_objects, height, width)
         if masks.ndim == 2:
@@ -128,12 +124,10 @@ def save_json(images_dir,masks_dir,output_file):
     # JSONファイルとして保存
     with open(output_file, 'w') as f:
         json.dump(coco, f, ensure_ascii=False, indent=4)
-import os
-import numpy as np
-import cv2
-import matplotlib.pyplot as plt
-from pycocotools.coco import COCO
-def check(annFile):
+
+
+
+def check(annFile, dataset,img_name):
     # # アノテーションファイルのパスを指定
     # annFile = 'path/to/annotations.json'  # ここを実際のアノファイルのパスに置き換えてください
     # COCOオブジェクトを初期化
@@ -160,14 +154,15 @@ def check(annFile):
         exit()
 
     # ランダムに画像IDを選択（例として最初の画像IDを選択）
-    selected_img_id = 1  # または np.random.choice(imgIds) でランダム選択
-    print(f"Selected Image ID: {selected_img_id}")
+    # selected_img_id = 1  # または np.random.choice(imgIds) でランダム選択
+    print(imgIds)
+    selected_img_id=1
 
     # 画像情報を取得
     img = coco.loadImgs(selected_img_id)[0]
 
     # 画像ファイルのパスを構築
-    fn = os.path.join("static","dataset", "shrimp", img['file_name'])
+    fn = os.path.join("static","dataset", dataset, img['file_name'])
     if not os.path.exists(fn):
         print(f"画像ファイルが見つかりません: {fn}")
         exit()
@@ -187,7 +182,7 @@ def check(annFile):
     # アノテーションIDを取得
     annIds = coco.getAnnIds(imgIds=img['id'], catIds=catIds)
     anns = coco.loadAnns(annIds)
-    print(f"Annotations: {anns}")
+
 
     # アノテーションを画像上に表示
     coco.showAnns(anns)
@@ -197,7 +192,7 @@ def check(annFile):
     os.makedirs(output_dir, exist_ok=True)
 
     # 保存するファイル名を指定
-    output_filename = os.path.join("static","tmp_annotato","shrimp", f"{selected_img_id}.jpg")
+    output_filename = os.path.join("static","tmp_annotato", dataset, f"{img['file_name']}")
 
     # 画像を保存
     plt.savefig(output_filename, bbox_inches='tight', pad_inches=0)
