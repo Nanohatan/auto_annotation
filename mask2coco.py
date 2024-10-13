@@ -110,17 +110,108 @@ def get_annotations(masks_dir, images, category_id=0):
 
     return annotations
 
+
+def save_json(images_dir,masks_dir,output_file):
+    images = get_image_info(images_dir)
+
+    # アノテーションの生成
+    annotations = get_annotations(masks_dir, images)
+
+    # COCOフォーマットの構築
+    
+    coco = {
+        "images": images,
+        "annotations": annotations,
+        "categories": [{"id": 0, "name": "shrimp", "supercategory": "shrimp"},]
+    }
+
+    # JSONファイルとして保存
+    with open(output_file, 'w') as f:
+        json.dump(coco, f, ensure_ascii=False, indent=4)
+import os
+import numpy as np
+import cv2
+import matplotlib.pyplot as plt
+from pycocotools.coco import COCO
+def check(annFile):
+    # # アノテーションファイルのパスを指定
+    # annFile = 'path/to/annotations.json'  # ここを実際のアノファイルのパスに置き換えてください
+    # COCOオブジェクトを初期化
+    coco = COCO(annFile)
+
+    # COCOのカテゴリとスーパーカテゴリを表示
+    cats = coco.loadCats(coco.getCatIds())
+    nms = [cat['name'] for cat in cats]
+    print('COCO categories: \n{}\n'.format(' '.join(nms)))
+
+    nms = set([cat['supercategory'] for cat in cats])
+    print('Supercategories: \n{}\n'.format(' '.join(nms)))
+
+    # 'shrimp' カテゴリのカテゴリIDを取得
+    catIds = coco.getCatIds(catNms=['shrimp'])
+    print(f"Category IDs for 'shrimp': {catIds}")
+
+    # 'shrimp' カテゴリを含む全ての画像IDを取得
+    imgIds = coco.getImgIds(catIds=catIds)
+    print(f"Total images with 'shrimp' category: {len(imgIds)}")
+
+    if not imgIds:
+        print("指定されたカテゴリに対応する画像が見つかりません。")
+        exit()
+
+    # ランダムに画像IDを選択（例として最初の画像IDを選択）
+    selected_img_id = 1  # または np.random.choice(imgIds) でランダム選択
+    print(f"Selected Image ID: {selected_img_id}")
+
+    # 画像情報を取得
+    img = coco.loadImgs(selected_img_id)[0]
+
+    # 画像ファイルのパスを構築
+    fn = os.path.join("static","dataset", "shrimp", img['file_name'])
+    if not os.path.exists(fn):
+        print(f"画像ファイルが見つかりません: {fn}")
+        exit()
+
+    # 画像を読み込む（BGR形式からRGB形式に変換）
+    I = cv2.imread(fn)
+    if I is None:
+        print(f"画像の読み込みに失敗しました: {fn}")
+        exit()
+    I = cv2.cvtColor(I, cv2.COLOR_BGR2RGB)
+
+    # Matplotlibで画像を表示
+    plt.figure(figsize=(12, 8))
+    plt.imshow(I)
+    plt.axis('off')  # 軸を非表示にする
+
+    # アノテーションIDを取得
+    annIds = coco.getAnnIds(imgIds=img['id'], catIds=catIds)
+    anns = coco.loadAnns(annIds)
+    print(f"Annotations: {anns}")
+
+    # アノテーションを画像上に表示
+    coco.showAnns(anns)
+
+    # 保存先ディレクトリを指定（存在しない場合は作成）
+    output_dir = "annotated_images"
+    os.makedirs(output_dir, exist_ok=True)
+
+    # 保存するファイル名を指定
+    output_filename = os.path.join("static","tmp_annotato","shrimp", f"{selected_img_id}.jpg")
+
+    # 画像を保存
+    plt.savefig(output_filename, bbox_inches='tight', pad_inches=0)
+    plt.close()
+    return output_filename
+
+
+
 def main():
     
     # 設定
-    images_dir = 'dataset/images'        # 画像フォルダのパス
-    masks_dir = 'dataset/masks'          # マスクフォルダのパス
+    images_dir = 'static/dataset/shrimp'        # 画像フォルダのパス
+    masks_dir = 'static/annotation_info/shrimp'          # マスクフォルダのパス
     output_file = 'output_coco2.json'     # 出力JSONファイル名
-    # A = np.load(os.path.join(masks_dir,"_cars.npy"))
-    # B = np.load(os.path.join(masks_dir,"cars2.npy"))
-    # C = np.array([A,B])
-    # np.save("cars",C)
-    # exit()
 
     # 画像情報の取得
     images = get_image_info(images_dir)
@@ -139,8 +230,7 @@ def main():
     # JSONファイルとして保存
     with open(output_file, 'w') as f:
         json.dump(coco, f, ensure_ascii=False, indent=4)
-
-    print(f"COCOフォーマットのJSONファイルが {output_file} に保存されました。")
+    
 
 if __name__ == "__main__":
     main()

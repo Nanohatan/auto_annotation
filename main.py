@@ -1,19 +1,22 @@
-from fastapi import FastAPI, Request, UploadFile, File
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse
-from starlette.responses import FileResponse 
-from sam2.build_sam import build_sam2
-from sam2.sam2_image_predictor import SAM2ImagePredictor
-from PIL import Image, ImageDraw
-import os
-import numpy as np
-import io
 import base64
+import io
 import os
 import shutil
+
+import cv2
 import matplotlib.pyplot as plt
+import numpy as np
+from fastapi import FastAPI, File, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from PIL import Image, ImageDraw
+from pycocotools.coco import COCO
+from starlette.responses import FileResponse
+
+from sam2.build_sam import build_sam2
+from sam2.sam2_image_predictor import SAM2ImagePredictor
+
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 import torch
@@ -39,11 +42,6 @@ app.mount("/static", StaticFiles(directory="static",html = True), name="static")
 templates = Jinja2Templates(directory="templates")
 
 
-@app.get("/items/{id}", response_class=HTMLResponse)
-async def read_item(request: Request, id: str):
-    return templates.TemplateResponse(
-        request=request, name="item.html", context={"id": id}
-    )
 
 UPLOAD_DIRECTORY = "uploads"
 @app.get("/")
@@ -58,6 +56,7 @@ async def upload_form(request: Request):
 
 
 from pydantic import BaseModel
+
 
 def show_mask(mask, ax, random_color=False, borders = False):
     if random_color:
@@ -74,24 +73,32 @@ def show_mask(mask, ax, random_color=False, borders = False):
         contours = [cv2.approxPolyDP(contour, epsilon=0.01, closed=True) for contour in contours]
         mask_image = cv2.drawContours(mask_image, contours, -1, (1, 1, 1, 0.5), thickness=2) 
     ax.imshow(mask_image)
-import cv2
+
+def get_largest_mask(mask ):
+    num_labels, labels = cv2.connectedComponents(mask, connectivity=8)
+    largest_mask = mask
+    if num_labels <= 1:
+        largest_mask = mask
+    else:
+        # 各ラベルのピクセル数を計算
+        label_counts = np.bincount(labels.flatten())
+        label_counts[0] = 0  # 背景のラベル（0）を除外
+        
+        # 最も大きな連結成分のラベルを取得
+        largest_label = label_counts.argmax()
+        
+        # 最も大きな連結成分のみを保持
+        largest_mask = np.where(labels == largest_label, 255, 0).astype(np.uint8)
+    return largest_mask
+
 def get_mask_over(mask,img_path):
     mask = mask.astype(np.uint8)
+    mask = get_largest_mask(mask)
     contours, _ = cv2.findContours(mask,cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE) 
-    # Try to smooth contours
-
     img = cv2.imread(img_path)
     cv2.drawContours(img, contours, -1, (0,255,0), 3)
-
-    # img[mask==1] = [128, 128, 128] 
     mask[mask==1] = 255
-
-    return img
-
-def save_mask(mask,fn):
-    # static/annotaion_info/{dataset}/{image}-01.npy, 01... number of object in a image.
-
-    np.save(fn,mask)
+    return img,mask
 
 
 
@@ -121,13 +128,14 @@ async def post_coordinates(coord: Coordinate):
         masks = masks[sorted_ind]
         scores = scores[sorted_ind]
         logits = logits[sorted_ind]
-        img = get_mask_over(masks[0],image_path)
-        annotato_path = os.path.join("static","tmp_annotato",coord.dataset,coord.fn)
+        img,mask = get_mask_over(masks[0],image_path)
+        annotato_path = os.path.join("static","tmp_annotato",coord.dataset,"tmp.jpg")
         cv2.imwrite(annotato_path, img)
-
+        np.save(os.path.join("static","tmp_annotato",coord.dataset,"mask"),mask)
+        # cv2.imwrite(os.path.join("static","tmp_annotato",coord.dataset,"mask.jpg"),mask)
 
     # クライアントにレスポンスを返します
-    return {"message": "Coordinates received successfully", "annotato_path":os.path.join(coord.dataset,coord.fn)}
+    return {"message": "Coordinates received successfully", "annotato_path":os.path.join(coord.dataset,"tmp.jpg")}
 
 
 @app.get("/test/{dataset}")
@@ -166,9 +174,48 @@ class ImageInfo(BaseModel):
     @property
     def original_img_path(self) -> str:
         return os.path.join("static", "dataset", self.dataset, self.fn)
+    @property
+    def mask_path(self) -> str:
+        return os.path.join("static", "tmp_annotato", self.dataset, "mask.npy")
+    @property 
+    def no_ext(self) -> str:
+        return self.fn.split(".")[0]
 
 
-app.get("annotation")
-async def get_annotation(image_info: ImageInfo):
+def get_masked_Img():
+    pass
 
+@app.post("/save_annotation")
+async def save_annotation(image_info: ImageInfo):
+    mask = np.load(image_info.mask_path)
+    if mask.ndim == 2:
+        mask = mask[np.newaxis, :, :] 
+
+    fn = os.path.join("static", "annotation_info", image_info.dataset, image_info.no_ext+".npy")
+
+    if os.path.exists(fn):
+        mask1 = np.load(fn)
+        
+        mask = np.concatenate((mask1, mask), axis=0)
+    np.save(fn,mask)
     return {"image_path":image_info}
+
+import mask2coco 
+
+
+@app.post("/annotation_result")
+async def get_annotation(image_info: ImageInfo):
+    fn = os.path.join("static", "annotation_info", image_info.dataset, image_info.no_ext+".npy")
+    masks = np.load(fn)
+    json_fn = os.path.join("static", "json", image_info.dataset, image_info.no_ext+".json")
+    if not os.path.exists(json_fn):
+        mask2coco.save_json(os.path.join("static", "dataset", image_info.dataset),
+                            os.path.join("static", "annotation_info",image_info.dataset), json_fn)
+        path = mask2coco.check(json_fn)
+    else:
+        mask2coco.save_json(os.path.join("static", "dataset", image_info.dataset),
+                            os.path.join("static", "annotation_info",image_info.dataset), json_fn)
+        path = mask2coco.check(json_fn)
+    path = os.path.join("tmp_annotato", image_info.dataset, "1.jpg")
+    return {"image_path":path}
+

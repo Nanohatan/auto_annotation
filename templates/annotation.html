@@ -7,8 +7,6 @@
 </head>
 <body>
 
-
-
 <div class="container">
     <h1>dataset: {{dataset}}</h1>
     <h2 id="imageName">{{images[0]}}</h2>
@@ -21,6 +19,7 @@
         </div>
         <div class="col"> 
             <button id="reloadButton" type="button" class="btn btn-info">Reload annotation image</button>
+            <button id="saveButton" type="button" class="btn btn-primary">Save</button>
         </div>
     </div>
     <div class="row ">
@@ -28,18 +27,19 @@
             <img id="originalImage" src="{{ url_for('static', path='dataset/'+ dataset +'/' + images[0]) }}" width="100%" class="" alt="...">
         </div>
         <div class="col">
-            <img id="annotatoImage" src="https://dummyimage.com/1600x400/000/fff"  width="100%"  class=" " alt="...">
+            <img id="annotatoImage" src="{{ url_for('static', path='dataset/'+ dataset +'/' + images[0]) }}" width="100%"  class=" " alt="...">
         </div>
     </div>  
 
     <div class="row ">
         <h2>total annotation image</h2>
         <div class="col"> 
-            <button type="button" class="btn btn-primary">show</button>
+            <button id="showResultButton" type="button" class="btn btn-primary">show</button>
+            <button id="reloadResultImagButton" type="button" class="btn btn-info">Reload result image</button>
         </div>
     </div>
     <div class="row">
-        <img id="" src="https://dummyimage.com/1600x400/000/fff"  width="100%"  class=" " alt="...">
+        <img id="annotatoResultImage" src="{{ url_for('static', path='dataset/'+ dataset +'/' + images[0]) }}" width="100%"  class=" " alt="...">
     </div>
 
 </div>
@@ -118,6 +118,63 @@
         const originalSrc = annotatoImage.getAttribute('src').split('?')[0];
         annotatoImage.setAttribute('src', `${originalSrc}?t=${timestamp}`);
     });
+
+    const reloadResultImagButton = document.getElementById('reloadResultImagButton');
+    reloadResultImagButton.addEventListener('click', function() {
+        // 画像のソースURLにタイムスタンプを追加してキャッシュを回避
+        const timestamp = new Date().getTime();
+        const originalSrc = annotatoResultImage.getAttribute('src').split('?')[0];
+        annotatoResultImage.setAttribute('src', `${originalSrc}?t=${timestamp}`);
+    });
+
+    //save button
+    const saveButton = document.getElementById('saveButton');
+    // ボタンクリック時のイベントリスナーを追加
+    saveButton.addEventListener('click', function() {
+        fetch('/save_annotation', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                fn: images[shownImageIndex],
+                dataset: "{{dataset}}",
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Success:', data.image_path);
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+        });
+    });
+
+    //show result button
+    const showResultButton = document.getElementById('showResultButton');
+    const annotatoResultImage = document.getElementById("annotatoResultImage");
+    // ボタンクリック時のイベントリスナーを追加
+    showResultButton.addEventListener('click', function() {
+        fetch('/annotation_result', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                fn: images[shownImageIndex],
+                dataset: "{{dataset}}",
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Success:', data);
+            annotatoResultImage.src = "{{ url_for('static', path='/' ) }}" + data.image_path;
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+        });
+    });
+
 </script>
 
 </body>
