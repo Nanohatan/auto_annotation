@@ -48,13 +48,13 @@ for dir in directories:
     dir_name = dir.split("/")[2]
     tmp = os.path.join("static", "tmp_annotato",dir_name)
     if not os.path.exists(tmp):
-        os.mkdir(tmp)
+        os.makedirs(tmp)
     tmp = os.path.join("static", "json",dir_name)
     if not os.path.exists(tmp):
-        os.mkdir(tmp)
+        os.makedirs(tmp)
     tmp = os.path.join("static", "annotation_info", dir_name)
     if not os.path.exists(tmp):
-        os.mkdir(tmp)
+        os.makedirs(tmp)
 
 UPLOAD_DIRECTORY = "uploads"
 @app.get("/")
