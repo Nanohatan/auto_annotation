@@ -1,1 +1,10 @@
 /sam2
+/static/dataset
+/static/annotation_info
+/static/tmp_annotato
+/static/json
+
+/checkpoints
+__pycache__
+
+.DS_Store
