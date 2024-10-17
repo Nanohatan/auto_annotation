@@ -106,8 +106,7 @@ def get_annotations(masks_dir, images, category_id=0):
 
     return annotations
 
-
-def save_json(images_dir,masks_dir,output_file):
+def gen_json(images_dir,masks_dir,):
     images = get_image_info(images_dir)
 
     # アノテーションの生成
@@ -120,6 +119,10 @@ def save_json(images_dir,masks_dir,output_file):
         "annotations": annotations,
         "categories": [{"id": 0, "name": "shrimp", "supercategory": "shrimp"},]
     }
+    return coco
+
+def save_json(coco,output_file):
+    
 
     # JSONファイルとして保存
     with open(output_file, 'w') as f:

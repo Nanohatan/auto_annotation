@@ -16,6 +16,7 @@ from starlette.responses import FileResponse
 import glob
 from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
+from routers import images
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
@@ -35,6 +36,10 @@ sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=device)
 predictor = SAM2ImagePredictor(sam2_model)
 
 app = FastAPI()
+app.include_router(images.router,
+    prefix="/images",  # すべてのエンドポイントに /items がプレフィックスとして追加されます
+    tags=["images"]    # ドキュメントでのグループ名を指定
+)
 
 app.mount("/static", StaticFiles(directory="static",html = True), name="static")
 
@@ -251,17 +256,21 @@ import mask2coco
 
 @app.post("/annotation_result")
 async def get_annotation(image_info: ImageInfo):
-    fn = os.path.join("static", "annotation_info", image_info.dataset, image_info.no_ext+".npy")
-    masks = np.load(fn)
-    json_fn = os.path.join("static", "json", image_info.dataset, image_info.no_ext+".json")
+    # fn = os.path.join("static", "annotation_info", image_info.dataset, image_info.no_ext+".npy")
+    # masks = np.load(fn)
+    json_fn = os.path.join("static", "json", image_info.dataset, "out.json")
     # if not os.path.exists(json_fn):
     #     mask2coco.save_json(os.path.join("static", "dataset", image_info.dataset),
     #                         os.path.join("static", "annotation_info",image_info.dataset), json_fn)
     #     path = mask2coco.check(json_fn)
     # else:
-    mask2coco.save_json(os.path.join("static", "dataset", image_info.dataset),
-                        os.path.join("static", "annotation_info",image_info.dataset), json_fn)
+    # coco = mask2coco.gen_json(os.path.join("static", "dataset", image_info.dataset),
+    #                     os.path.join("static", "annotation_info",image_info.dataset),)
+    # mask2coco.save_json(coco,json_fn)
     path = mask2coco.check(json_fn,dataset=image_info.dataset,img_name=image_info.fn)
     path = os.path.join("tmp_annotato", image_info.dataset, image_info.fn)
     return {"image_path":path}
+
+
+
 
